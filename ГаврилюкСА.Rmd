@@ -1,0 +1,140 @@
+```{r}
+install.packages("tidyverse")
+install.packages("readxl")
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+```
+
+```{r}
+setwd("C:\\Users\\Anya\\Desktop\\2 attemp\\Data")
+```
+```{r}
+data <- read_excel("pima.xlsx", sheet = 1)
+```
+```{r}
+# Выбор нужных переменных
+variables <- data[, c("glucose", "pressure", "mass")]
+```
+```{r}
+# Расчет описательных статистик
+stats <- sapply(variables, function(x) {
+  c(
+    Observations = sum(!is.na(x)),
+    Mean = mean(x, na.rm = TRUE),
+    SD = sd(x, na.rm = TRUE),
+    Q1 = quantile(x, 0.25, na.rm = TRUE),
+    Q3 = quantile(x, 0.75, na.rm = TRUE),
+    Min = min(x, na.rm = TRUE),
+    Max = max(x, na.rm = TRUE)
+  )
+})
+```
+```{r}
+# Транспонирование матрицы для лучшего отображения
+stats <- t(stats)
+```
+```{r}
+knitr::kable(stats, caption = "Описательные статистики для glucose, pressure и mass")
+```
+```{r}
+# 1. Описательная статистика для переменной diabetes
+diabetes_stats <- table(data$diabetes)
+diabetes_prop <- prop.table(diabetes_stats) * 100
+
+cat("Распределение переменной diabetes:\n")
+print(diabetes_stats)
+cat("\nПроцентное распределение:\n")
+print(round(diabetes_prop, 1))
+```
+```{r}
+# 2. Создание возрастных групп
+data$age_group <- cut(data$age,
+                     breaks = c(20, 35, 49, Inf),
+                     labels = c("21-35", "36-49", "50+"),
+                     right = TRUE)
+
+```
+```{r}
+# 3. Описательная статистика для age_group
+age_group_stats <- table(data$age_group)
+age_group_prop <- prop.table(age_group_stats) * 100
+```
+```{r}
+cat("\nРаспределение по возрастным группам:\n")
+print(age_group_stats)
+cat("\nПроцентное распределение:\n")
+print(round(age_group_prop, 1))
+```
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = diabetes, y = glucose, fill = diabetes)) +
+  geom_boxplot() +
+  labs(title = "Распределение уровня глюкозы по статусу диабета",
+       x = "Диабет (pos/neg)",
+       y = "Уровень глюкозы") +
+  scale_fill_manual(values = c("neg" = "lightblue", "pos" = "lightgreen")) +
+  theme_minimal()
+```
+```{r}
+set.seed(123)
+```
+```{r}
+sample_size <- 30
+mean_before <- 150  # среднее давление до приема препарата
+mean_after <- 115   # ожидаемое среднее давление после приема
+sd_change <- 10     # стандартное отклонение изменений
+```
+```{r}
+before <- rnorm(sample_size, mean = mean_before, sd = 15)
+after <- rnorm(sample_size, mean = mean_after, sd = 15)
+```
+```{r}
+data <- data.frame(
+  patient = 1:sample_size,
+  before = before,
+  after = after
+)
+```
+# 1. Формулировка гипотез:
+# H0 (нулевая гипотеза): μ_after ≥ μ_before (препарат не снижает давление)
+# H1 (альтернативная гипотеза): μ_after < μ_before (препарат снижает давление)
+```{r}
+# 2. Уровень значимости
+alpha <- 0.05
+```
+```{r}
+test_result <- t.test(data$after, data$before, 
+                      paired = TRUE, 
+                      alternative = "less")
+```
+```{r}
+cat("Результаты парного t-теста:\n")
+print(test_result)
+```
+```{r}
+# Визуализация
+boxplot(data[, c("before", "after")],
+        main = "Сравнение давления до и после лечения",
+        ylab = "Артериальное давление (мм рт. ст.)",
+        col = c("lightcoral", "lightgreen"),
+        names = c("До лечения", "После лечения"))
+```
+```{r}
+# Интерпретация
+if(test_result$p.value < alpha) {
+  cat("\nВывод: Отвергаем нулевую гипотезу (p =", round(test_result$p.value, 4), 
+      "). Новый препарат статистически значимо снижает артериальное давление.")
+} else {
+  cat("\nВывод: Недостаточно оснований отвергнуть нулевую гипотезу (p =", 
+      round(test_result$p.value, 4), 
+      "). Нет статистически значимых доказательств эффективности нового препарата.")
+}
+```
+
+

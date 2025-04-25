@@ -1,0 +1,252 @@
+```{r}
+setwd("C:\\Users\\Anya\\Desktop\\2 attemp\\Data")
+```
+```{r}
+install.packages("caTools")
+```
+
+```{r}
+library(caTools)
+```
+
+# Загрузка данных
+```{r}
+df <- read.csv("house_sales_dataset.csv")
+head(df)
+```
+
+
+# Исследование данных
+ 
+```{r}
+dim(df)  # Размер DataFrame
+str(df)  # Типы данных
+summary(df)  # Описательная статистика
+```
+
+# Гистограмма цен на дома
+```{r}
+hist(df$Price, breaks = 30, xlab = "Цена", ylab = "Частота", main = "Распределение цен на дома")
+```
+
+
+# Распределение размера дома
+```{r}
+hist(df$Size_SquaredMeters, breaks = 30, xlab = "Размер (кв. м)", ylab = "Частота", main = "Распределение размера дома")
+```
+
+
+# Количество продаж по городам
+```{r}
+barplot(table(df$City), xlab = "Город", ylab = "Количество продаж", main = "Количество продаж по городам", las = 2)  # las = 2 для поворота подписей оси x
+```
+
+
+# Пропущенные значения
+```{r}
+colSums(is.na(df))  # Количество пропущенных значений в каждом столбце
+colMeans(is.na(df)) * 100  # Процент пропущенных значений в каждом столбце
+```
+
+
+# Выбросы (пример: размер и цена)
+```{r}
+boxplot(df$Size_SquaredMeters, df$Price, names = c("Размер (кв. м)", "Цена"), main = "Ящичковые диаграммы для размера и цены")
+
+```
+
+# Подготовка данных
+# Преобразование города в фактор
+```{r}
+df$City <- as.factor(df$City)
+```
+
+
+# Создание взаимодействия
+```{r}
+df$City_x_Size <- df$City * df$Size_SquaredMeters 
+```
+```{r}
+df$City_x_Size <- NULL
+```
+ 
+
+# Разделение данных
+```{r}
+library(caTools)
+set.seed(42)
+split <- sample.split(df$Price, SplitRatio = 0.75)
+train <- subset(df, split == TRUE)
+test <- subset(df, split == FALSE)
+```
+# Проверка, что все города присутствуют в train
+```{r}
+unique(train$City)
+unique(test$City)
+```
+
+
+# Стандартизация числовых признаков
+```{r}
+numerical_features <- c("Size_SquaredMeters")
+train[numerical_features] <- scale(train[numerical_features])
+test[numerical_features] <- scale(test[numerical_features])
+```
+# Создание взаимодействия ПОСЛЕ разделения (для train и test отдельно)
+```{r}
+train$City_x_Size <- interaction(train$City, train$Size_SquaredMeters)
+test$City_x_Size <- interaction(test$City, test$Size_SquaredMeters)
+```
+# Обучение модели
+```{r}
+model <- lm(Price ~ Size_SquaredMeters * City, data = train)
+```
+```{r}
+summary(model)
+```
+# Удаляем строки с городами, которых нет в train
+```{r}
+cities_in_train <- unique(train$City)
+test <- test[test$City %in% cities_in_train, ]
+```
+# Пересоздаём фактор City в test
+```{r}
+test$City <- factor(test$City, levels = levels(train$City))
+```
+# Стандартизируем Size_SquaredMeters с параметрами из train
+```{r}
+mean_size <- mean(df$Size_SquaredMeters)   
+sd_size <- sd(df$Size_SquaredMeters)
+train$Size_SquaredMeters <- scale(train$Size_SquaredMeters)
+test$Size_SquaredMeters <- (test$Size_SquaredMeters - mean_size) / sd_size
+```
+# Переобучаем модель (на всякий случай)
+```{r}
+model <- lm(Price ~ Size_SquaredMeters * City, data = train)
+```
+```{r}
+predictions <- predict(model, newdata = test)
+```
+# Оценка модели
+```{r}
+r2 <- summary(model)$r.squared
+rmse <- sqrt(mean((test$Price - predictions)^2))
+mae <- mean(abs(test$Price - predictions))
+```
+# Вывод метрик
+```{r}
+cat("Метрики качества модели:\n")
+cat("------------------------\n")
+cat("R-квадрат:", round(r2, 4), "\n")
+cat("RMSE:", round(rmse, 2), "\n") 
+cat("MAE:", round(mae, 2), "\n\n")
+```
+# Коэффициенты модели
+```{r}
+cat("Статистическая значимость предикторов:\n")
+cat("-------------------------------------\n")
+print(summary(model))
+```
+```{r}
+par(mfrow = c(2, 2))
+```
+# 1. Фактические vs Предсказанные значения
+```{r}
+plot(test$Price, predictions, 
+     main = "Фактические vs Предсказанные значения",
+     xlab = "Фактическая цена", ylab = "Предсказанная цена",
+     pch = 19, col = "blue")
+abline(0, 1, col = "red", lwd = 2)
+
+
+
+```
+# 2. Остатки vs Предсказанные значения
+```{r}
+plot(predictions, test$Price - predictions,
+     main = "Остатки vs Предсказанные значения",
+     xlab = "Предсказанные значения", ylab = "Остатки",
+     pch = 19, col = "darkgreen")
+abline(h = 0, col = "red", lwd = 2)
+
+```
+# 3. Распределение ошибок
+```{r}
+hist(test$Price - predictions, 
+     main = "Распределение ошибок",
+     xlab = "Ошибки прогноза", col = "lightblue")
+```
+# 4. Ящик с усами для ошибок
+```{r}
+boxplot(test$Price - predictions,
+        main = "Распределение ошибок",
+        ylab = "Величина ошибки", col = "orange")
+```
+
+```{r}
+par(mfrow = c(1, 1))  
+```
+# Дополнительный анализ важности переменных
+```{r}
+if("caret" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("caret")
+}
+library(caret)
+varImp <- varImp(model)
+print(varImp)
+```
+```{r}
+residuals <- residuals(model)
+```
+# График квантиль-квантиль
+```{r}
+qqnorm(residuals, main = "Q-Q plot остатков")
+qqline(residuals, col = "red")
+```
+# Тест Шапиро-Уилка на нормальность
+```{r}
+shapiro_test <- shapiro.test(residuals)
+cat("\nТест Шапиро-Уилка на нормальность остатков:\n")
+cat("----------------------------------------\n")
+cat("W =", round(shapiro_test$statistic, 4), "\n")
+cat("p-value =", format.pval(shapiro_test$p.value), "\n")
+if(shapiro_test$p.value > 0.05) {
+  cat("Остатки нормально распределены (p > 0.05)\n")
+} else {
+  cat("Остатки НЕ нормально распределены (p ≤ 0.05)\n")
+}
+```
+```{r}
+simple_model <- lm(Price ~ Size_SquaredMeters + City, data = train)
+```
+```{r}
+library(car)
+crPlots(simple_model, terms = "Size_SquaredMeters", 
+        main = "Проверка линейности связи: Цена ~ Площадь")
+```
+```{r}
+predictions <- predict(model)
+residuals <- residuals(model)
+
+plot(predictions, residuals, 
+     main = "Проверка гомоскедастичности",
+     xlab = "Предсказанные значения", ylab = "Остатки",
+     pch = 19, col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+```{r}
+library(ggplot2)
+```
+```{r}
+ggplot(df, aes(x = Size_SquaredMeters, y = Price, color = City_Size)) +
+  geom_point(alpha = 0.6) +  # Точки с прозрачностью
+  labs(
+    title = "Зависимость цены дома от его площади",  # Название графика
+    x = "Площадь (кв. м)",                          # Подпись оси X
+    y = "Цена (евро)",                              # Подпись оси Y
+    color = "Размер города"                         # Подпись легенды
+  ) +
+  theme_minimal() +                                 # Минималистичная тема
+  theme(plot.title = element_text(hjust = 0.5))     # Центрирование названия
+```
+
